@@ -16,8 +16,55 @@
 #include <v8.h>
 #include "nan.h"
 
-using namespace v8;
-using namespace node;
+using v8::Local;
+using v8::Value;
+using v8::Integer;
+using v8::Number;
+using v8::Int32;
+using v8::Uint32;
+using v8::String;
+using v8::Object;
+using v8::Date;
+using v8::Array;
+using v8::RegExp;
+using v8::Function;
+using v8::FunctionTemplate;
+using Nan::Persistent;
+using Nan::ObjectWrap;
+
+#define NanStr(x) (Unmaybe(Nan::New<String>(x)))
+#define NanHas(obj, key) (Nan::Has(obj, NanKey(key)).FromJust())
+#define NanGet(obj, key) (Unmaybe(Nan::Get(obj, NanKey(key))))
+#define NanAssignPersistent(persistent, value) persistent.Reset(value)
+// Unmaybe overloading to conviniently convert from Local/MaybeLocal/Maybe to Local/plain value
+template <class T>
+inline Local<T> Unmaybe(Local<T> h) {
+    return h;
+}
+template <class T>
+inline Local<T> Unmaybe(Nan::MaybeLocal<T> h) {
+    return h.ToLocalChecked();
+}
+template <class T>
+inline T Unmaybe(Nan::Maybe<T> h) {
+    return h.FromJust();
+}
+// NanKey overloading to conviniently convert to a propert key for object/array
+inline int NanKey(int i) {
+    return i;
+}
+inline Local<String> NanKey(const char* s) {
+    return NanStr(s);
+}
+inline Local<String> NanKey(const std::string& s) {
+    return NanStr(s);
+}
+inline Local<String> NanKey(const Local<String>& s) {
+    return s;
+}
+inline Local<String> NanKey(const Nan::Persistent<String>& s) {
+    return NanStr(s);
+}
 
 //===========================================================================
 
@@ -48,13 +95,13 @@ enum BsonType
 
 template<typename T> class BSONSerializer;
 
-class BSON : public ObjectWrap {
+class BSON : public Nan::ObjectWrap {
 public:
 	BSON();
 	~BSON() {}
 
-	static void Initialize(Handle<Object> target);
-  static NAN_METHOD(BSONDeserializeStream);
+	static void Initialize(Local<Object> target);
+ 	static NAN_METHOD(BSONDeserializeStream);
 
 	// JS based objects
 	static NAN_METHOD(BSONSerialize);
@@ -73,7 +120,7 @@ public:
 
 private:
 	static NAN_METHOD(New);
-	static Handle<Value> deserialize(BSON *bson, char *data, uint32_t dataLength, uint32_t startIndex, bool is_array_item);
+	static Local<Value> deserialize(BSON *bson, char *data, uint32_t dataLength, uint32_t startIndex, bool is_array_item);
 
 	// BSON type instantiate functions
 	Persistent<Function> longConstructor;
@@ -121,7 +168,7 @@ private:
 	Persistent<String> _codeScopeString;
 	Persistent<String> _toBSONString;
 
-	Local<Object> GetSerializeObject(const Handle<Value>& object);
+	Local<Object> GetSerializeObject(const Local<Value>& object);
 
 	template<typename T> friend class BSONSerializer;
 	friend class BSONDeserializer;
@@ -135,19 +182,19 @@ public:
 	CountStream() : count(0) { }
 
 	void	WriteByte(int value)									{ ++count; }
-	void	WriteByte(const Handle<Object>&, const Handle<String>&)	{ ++count; }
-	void	WriteBool(const Handle<Value>& value)					{ ++count; }
+	void	WriteByte(const Local<Object>&, const Local<String>&)	{ ++count; }
+	void	WriteBool(const Local<Value>& value)					{ ++count; }
 	void	WriteInt32(int32_t value)								{ count += 4; }
-	void	WriteInt32(const Handle<Value>& value)					{ count += 4; }
-	void	WriteInt32(const Handle<Object>& object, const Handle<String>& key) { count += 4; }
+	void	WriteInt32(const Local<Value>& value)					{ count += 4; }
+	void	WriteInt32(const Local<Object>& object, const Local<String>& key) { count += 4; }
 	void	WriteInt64(int64_t value)								{ count += 8; }
-	void	WriteInt64(const Handle<Value>& value)					{ count += 8; }
+	void	WriteInt64(const Local<Value>& value)					{ count += 8; }
 	void	WriteDouble(double value)								{ count += 8; }
-	void	WriteDouble(const Handle<Value>& value)					{ count += 8; }
-	void	WriteDouble(const Handle<Object>&, const Handle<String>&) { count += 8; }
+	void	WriteDouble(const Local<Value>& value)					{ count += 8; }
+	void	WriteDouble(const Local<Object>&, const Local<String>&) { count += 8; }
 	void	WriteUInt32String(uint32_t name)						{ char buffer[32]; count += sprintf(buffer, "%u", name) + 1; }
 	void	WriteLengthPrefixedString(const Local<String>& value)	{ count += value->Utf8Length()+5; }
-	void	WriteObjectId(const Handle<Object>& object, const Handle<String>& key)				{ count += 12; }
+	void	WriteObjectId(const Local<Object>& object, const Local<String>& key)				{ count += 12; }
 	void	WriteString(const Local<String>& value)					{ count += value->Utf8Length() + 1; }	// This returns the number of bytes exclusive of the NULL terminator
 	void	WriteData(const char* data, size_t length)				{ count += length; }
 
@@ -177,7 +224,7 @@ public:
 		*p++ = value;
 	}
 
-	void	WriteByte(const Handle<Object>& object, const Handle<String>& key)	{
+	void	WriteByte(const Local<Object>& object, const Local<String>& key)	{
 		if((size_t)((p + 1) - destinationBuffer) > MAX_BSON_SIZE) throw "document is larger than max bson document size of 16MB";
 		*p++ = object->Get(key)->Int32Value();
 	}
@@ -219,27 +266,27 @@ public:
 		p += 8;
 	}
 #endif
-	void	WriteBool(const Handle<Value>& value) {
+	void	WriteBool(const Local<Value>& value) {
 		WriteByte(value->BooleanValue() ? 1 : 0);
 	}
 
-	void	WriteInt32(const Handle<Value>& value) {
+	void	WriteInt32(const Local<Value>& value) {
 		WriteInt32(value->Int32Value());
 	}
 
-	void	WriteInt32(const Handle<Object>& object, const Handle<String>& key) {
+	void	WriteInt32(const Local<Object>& object, const Local<String>& key) {
 		WriteInt32(object->Get(key));
 	}
 
-	void	WriteInt64(const Handle<Value>& value) {
+	void	WriteInt64(const Local<Value>& value) {
 		WriteInt64(value->IntegerValue());
 	}
 
-	void	WriteDouble(const Handle<Value>& value)	{
+	void	WriteDouble(const Local<Value>& value)	{
 		WriteDouble(value->NumberValue());
 	}
 
-	void	WriteDouble(const Handle<Object>& object, const Handle<String>& key) {
+	void	WriteDouble(const Local<Object>& object, const Local<String>& key) {
 		WriteDouble(object->Get(key));
 	}
 
@@ -254,7 +301,7 @@ public:
 		WriteString(value);
 	}
 
-	void	WriteObjectId(const Handle<Object>& object, const Handle<String>& key);
+	void	WriteObjectId(const Local<Object>& object, const Local<String>& key);
 
 	void	WriteString(const Local<String>& value)	{
 		if((size_t)(p - destinationBuffer) > MAX_BSON_SIZE) throw "document is larger than max bson document size of 16MB";
@@ -313,9 +360,9 @@ public:
 	BSONSerializer(BSON* aBson, bool aCheckKeys, bool aSerializeFunctions) : Inherited(), checkKeys(aCheckKeys), serializeFunctions(aSerializeFunctions), bson(aBson) { }
 	BSONSerializer(BSON* aBson, bool aCheckKeys, bool aSerializeFunctions, char* parentParam) : Inherited(parentParam), checkKeys(aCheckKeys), serializeFunctions(aSerializeFunctions), bson(aBson) { }
 
-	void SerializeDocument(const Handle<Value>& value);
-	void SerializeArray(const Handle<Value>& value);
-	void SerializeValue(void* typeLocation, const Handle<Value> value, bool isArray);
+	void SerializeDocument(const Local<Value>& value);
+	void SerializeArray(const Local<Value>& value);
+	void SerializeValue(void* typeLocation, const Local<Value> value, bool isArray);
 
 private:
 	bool		checkKeys;
@@ -331,10 +378,10 @@ public:
 	BSONDeserializer(BSON* aBson, char* data, size_t length);
 	BSONDeserializer(BSONDeserializer& parentSerializer, size_t length);
 
-	Handle<Value> DeserializeDocument(bool promoteLongs);
+	Local<Value> DeserializeDocument(bool promoteLongs);
 
 	bool			HasMoreData() const { return p < pEnd; }
-	Handle<Value>	ReadCString();
+	Local<Value>	ReadCString();
 	uint32_t		ReadIntegerString();
 	int32_t			ReadRegexOptions();
 	Local<String>	ReadString();
@@ -356,10 +403,10 @@ public:
 	size_t			GetSerializeSize() const { return p - pStart; }
 
 private:
-	Handle<Value> DeserializeArray(bool promoteLongs);
-	Handle<Value> DeserializeValue(BsonType type, bool promoteLongs);
-	Handle<Value> DeserializeDocumentInternal(bool promoteLongs);
-	Handle<Value> DeserializeArrayInternal(bool promoteLongs);
+	Local<Value> DeserializeArray(bool promoteLongs);
+	Local<Value> DeserializeValue(BsonType type, bool promoteLongs);
+	Local<Value> DeserializeDocumentInternal(bool promoteLongs);
+	Local<Value> DeserializeArrayInternal(bool promoteLongs);
 
 	BSON*		bson;
 	char* const pStart;
