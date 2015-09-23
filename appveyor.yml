@@ -5,9 +5,9 @@ environment:
     secure: pF+hGI1d/+HVKL0EWCGY6YxvRZrfQrLoxfG5AqQTLJ9hJZaiRRQTwU8cwL+4IEuW
 
 test_script:
-  - ps: Install-Product node 4.1.1 x86
+  - ps: Install-Product node 4 x86
   - .\test\scripts\test
-  - ps: Install-Product node 4.1.1 x64
+  - ps: Install-Product node 4 x64
   - .\test\scripts\test
   - ps: Install-Product node 1 x86
   - .\test\scripts\test
